@@ -4,3 +4,5 @@
 `g++ -O2 -o MAC MAC.cpp -Wall -isystem $HOME/eigen-3.4.0`
 - 実行の仕方 （いつまで計算するか整数を指定）<br>
 `./MAC 1000 > outer.dat`
+- 可視化の仕方<br>
+`ShowFlow.ipynb`に処理をさせれば`test.gif`ができる
