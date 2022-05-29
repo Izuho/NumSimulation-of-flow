@@ -149,54 +149,58 @@ vector<vector<double> > DIFT(vector<vector<double> > &temp) {
   return ans;
 }
 
+// P_{0,0}, P_{0,1},...
+//P_{i,j}は上からP.at((i*(N+2))+j)
 vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvu,
 			      vector<vector<double> > &difu,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  MatrixXd A = MatrixXd::Zero((N+2)*(N+2), 1+(N+2)*4+N*N);
-  VectorXd b(1+(N+2)*4+N*N);
-  for(int i=0; i<N+2; i++) {
-    A(i,i) = 1; A(i+N+2,i) = -1;
-    b(i) = 0;
-  }
-  for(int i=0; i<N+2; i++) {
-    A(i*(N+2),i+N+2) = 1; A(i*(N+2)+1,i+N+2) = -1;
-    b(i+N+2) = 0;
-  }
-  for(int i=0; i<N+2; i++) {
-    A((N+1)*(N+2)+i,i+(N+2)*2) = 1; A(N*(N+2)+i,i+(N+2)*2) = -1;
-    b(i+(N+2)*2) = 0;
-  }
-  for(int i=0; i<N+2; i++) {
-    A(i*(N+2)+N+1,i+(N+2)*3) = 1; A(i*(N+2)+N,i+(N+2)*3) = -1;
-    b(i+(N+2)*3) = 0;
-  }
-  for (int i=1; i<=N; i++) {
-    for (int j=1; j<=N; j++) {
-      A((N+2)*j+i-1,(i-1)*N+j-1+(N+2)*4) = 1;
-      A((N+2)*j+i,(i-1)*N+j-1+(N+2)*4) = -4;
-      A((N+2)*j+i+1,(i-1)*N+j-1+(N+2)*4) = 1;
-      A((N+2)*j+i-N-2,(i-1)*N+j-1+(N+2)*4) = 1;
-      A((N+2)*j+i+N+2,(i-1)*N+j-1+(N+2)*4) = 1;
-      b((i-1)*N+j-1+(N+2)*4) =
-	(div.at(i).at(j) / dt +
-	 (difu.at(i).at(j) + cnvu.at(i-1).at(j) - cnvu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
-	 (difv.at(i).at(j) + buov.at(i).at(j) - cnvv.at(i).at(j) + cnvv.at(i).at(j-1) - difv.at(i).at(j-1) - buov.at(i).at(j-1)) / dy) * (dx * dx);
-    }
-  }
-  A(N+2, (N+2)*4+N*N) = 1; b((N+2)*4+N*N) = 0;
-  A.transposeInPlace();
-  VectorXd x = A.bdcSvd(ComputeThinU | ComputeThinV).solve(b);
-  //cout << "b:" << b << endl << endl << "x:" << x << endl;
-  vector<vector<double> > ans(N+2, vector<double>(N+2));
-  for (int i=0; i<N+2; i++) {
-    for (int j=0; j<N+2; j++) {
-      ans.at(i).at(j) = x((N+2)*j+i);
-    }
+  MatrixXd A = MatrixXd::Zero((N+2)*(N+2), (N+2)*(N+2));
+  VectorXd b((N+2)*(N+2));
+
+  // P_{0,0} = P_{N+1,0} = P_{0,N+1} = P_{N+1,N+1} = 0
+  A(0,0) = 1; b(0) = 0;
+  A(1,N+1) = 1; b(1) = 0;
+  A(2,(N+1)*(N+2)) = 1; b(2) = 0;
+  A(3,(N+1)*(N+2)+N+1) = 1; b(3) = 0;
+
+  for (int i = 1; i < N+1; i++) {
+    // P_{0,i} = P_{1,i}
+    A(3+i, i) = 1; A(3+i, i+N+2) = -1; b(3+i) = 0;
+
+    // P_{i,0} = P_{i,1}
+    A(3+N+i, i*(N+2)) = 1; A(3+N+i, i*(N+2)+1) = -1; b(3+N+i) = 0;
+
+    // P_{i,N} = P_{i,N+1}
+    A(3+2*N+i, i*(N+2)+N) = 1; A(3+2*N+i, i*(N+2)+N+1) = -1; b(3+2*N+i) = 0;
+
+    // P_{N,i} = P_{N+1,i}
+    A(3+3*N+i, N*(N+2)+i) = 1; A(3+3*N+i, (N+1)*(N+2)+i) = -1; b(3+3*N+i) = 0;
   }
 
+  // P_{i-1,j} + P_{i,j-1} + P_{i+1,j} + P_{i,j+1} - 4 * P_{i,j} = ...
+  for (int i=1; i<N+1; i++) {
+    for (int j=1; j<N+1; j++) {
+      A(3+4*N+(i-1)*N+j, (i-1)*(N+2)+j) = 1;
+      A(3+4*N+(i-1)*N+j, i*(N+2)+j-1) = 1;
+      A(3+4*N+(i-1)*N+j, (i+1)*(N+2)+j) = 1;
+      A(3+4*N+(i-1)*N+j, i*(N+2)+j+1) = 1;
+      A(3+4*N+(i-1)*N+j, i*(N+2)+j) = -4;
+      b(3+4*N+(i-1)*N+j) =
+	(div.at(i).at(j) / dt +
+	 (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
+	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx);
+    }
+  }
+  VectorXd x = A.colPivHouseholderQr().solve(b);
+  vector<vector<double> > ans(N+2, vector<double>(N+2,0));
+  for (int i=0; i<N+2; i++) {
+    for (int j=0; j<N+2; j++) {
+      ans.at(i).at(j) = x(i*(N+2)+j);
+    }
+  }
   return ans;
 }
 
