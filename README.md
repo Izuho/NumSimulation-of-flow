@@ -17,5 +17,5 @@
 - `instruments -t "Time Profiler" ./MAC 1000`からの `open instrumentscli0.trace`で解析
 
 ## 今後
-- 性能評価をするためにpapi performanceを使って、flopsを計算する。
+- 性能評価をする。
 - 理想性能よりも小さいはずなのでスレッド並列化などをして計算時間を減らす。
