@@ -26,9 +26,7 @@ dy=1/100
 
  */
 #include <bits/stdc++.h>
-#include "Eigen/Core"
-#include "Eigen/Dense"
-using namespace Eigen;
+#include "CG.hpp"
 using namespace std;
 #define N 10
 // N に合わせる
@@ -37,6 +35,8 @@ using namespace std;
 #define Ra 7100
 #define Pr 0.71
 #define dt 1e-4
+
+vector<double> x((N+2)*(N+2),0);
 
 vector<vector<double> > DIV(vector<vector<double> > &u, vector<vector<double> > &v) {
   vector<vector<double> > ans(N+2, vector<double>(N+2, 0));
@@ -150,55 +150,76 @@ vector<vector<double> > DIFT(vector<vector<double> > &temp) {
 }
 
 // P_{0,0}, P_{0,1},...
-//P_{i,j}は上からP.at((i*(N+2))+j)
+//P_{i,j}はP.at((i*(N+2))+j)
 vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvu,
 			      vector<vector<double> > &difu,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  MatrixXd A = MatrixXd::Zero((N+2)*(N+2), (N+2)*(N+2));
-  VectorXd b((N+2)*(N+2));
-
+  // using CRS
+  vector<double> A_val, b;
+  vector<int> A_r, A_c;
+  
   // P_{0,0} = P_{N+1,0} = P_{0,N+1} = P_{N+1,N+1} = 0
-  A(0,0) = 1; b(0) = 0;
-  A(1,N+1) = 1; b(1) = 0;
-  A(2,(N+1)*(N+2)) = 1; b(2) = 0;
-  A(3,(N+1)*(N+2)+N+1) = 1; b(3) = 0;
+  A_val.push_back(1.); A_r.push_back(0); A_c.push_back(0); b.push_back(0);
+  A_val.push_back(1.); A_r.push_back(1); A_c.push_back(N+1); b.push_back(0);
+  A_val.push_back(1.); A_r.push_back(2); A_c.push_back((N+1)*(N+2)); b.push_back(0);
+  A_val.push_back(1.); A_r.push_back(3); A_c.push_back((N+1)*(N+3)); b.push_back(0);
 
   for (int i = 1; i < N+1; i++) {
     // P_{0,i} = P_{1,i}
-    A(3+i, i) = 1; A(3+i, i+N+2) = -1; b(3+i) = 0;
-
+    A_val.push_back(1.); A_c.push_back(i);
+    A_val.push_back(-1.); A_c.push_back(i+N+2);
+    A_r.push_back(4+(i-1)*2);
+    b.push_back(0);
+  }
+  for (int i = 1; i < N+1; i++) {
     // P_{i,0} = P_{i,1}
-    A(3+N+i, i*(N+2)) = 1; A(3+N+i, i*(N+2)+1) = -1; b(3+N+i) = 0;
+    A_val.push_back(1.); A_c.push_back(i*(N+2));
+    A_val.push_back(-1.); A_c.push_back(i*(N+2)+1);
+    A_r.push_back(4+2*N+(i-1)*2);
+    b.push_back(0);
+  }
 
+  for (int i = 1; i < N+1; i++) {
     // P_{i,N} = P_{i,N+1}
-    A(3+2*N+i, i*(N+2)+N) = 1; A(3+2*N+i, i*(N+2)+N+1) = -1; b(3+2*N+i) = 0;
-
+    A_val.push_back(1.); A_c.push_back(i*(N+2)+N);
+    A_val.push_back(-1.); A_c.push_back(i*(N+2)+N+1);
+    A_r.push_back(4+4*N+(i-1)*2);
+    b.push_back(0);
+  }
+    
+  for (int i = 1; i < N+1; i++) {
     // P_{N,i} = P_{N+1,i}
-    A(3+3*N+i, N*(N+2)+i) = 1; A(3+3*N+i, (N+1)*(N+2)+i) = -1; b(3+3*N+i) = 0;
+    A_val.push_back(1.); A_c.push_back(N*(N+2)+i);
+    A_val.push_back(-1.); A_c.push_back((N+1)*(N+2)+i);
+    A_r.push_back(4+6*N+(i-1)*2);
+    b.push_back(0);
   }
 
   // P_{i-1,j} + P_{i,j-1} + P_{i+1,j} + P_{i,j+1} - 4 * P_{i,j} = ...
   for (int i=1; i<N+1; i++) {
     for (int j=1; j<N+1; j++) {
-      A(3+4*N+(i-1)*N+j, (i-1)*(N+2)+j) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j-1) = 1;
-      A(3+4*N+(i-1)*N+j, (i+1)*(N+2)+j) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j+1) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j) = -4;
-      b(3+4*N+(i-1)*N+j) =
+      A_val.push_back(1.); A_c.push_back((i-1)*(N+2)+j);
+      A_val.push_back(1.); A_c.push_back(i*(N+2)+j-1);
+      A_val.push_back(1.); A_c.push_back((i+1)*(N+2)+j);
+      A_val.push_back(1.); A_c.push_back(i*(N+2)+j+1);
+      A_val.push_back(-4.); A_c.push_back(i*(N+2)+j);
+      A_r.push_back(4+8*N+((i-1)*N+j-1)*5);
+      b.push_back(
 	(div.at(i).at(j) / dt +
 	 (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
-	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx);
+	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx));
     }
   }
-  VectorXd x = A.colPivHouseholderQr().solve(b);
+  A_r.push_back(4+8*N+N*N*5);
+  
+  Bi_CGSTAB(A_val, A_r, A_c, b, x);
   vector<vector<double> > ans(N+2, vector<double>(N+2,0));
   for (int i=0; i<N+2; i++) {
     for (int j=0; j<N+2; j++) {
-      ans.at(i).at(j) = x(i*(N+2)+j);
+      ans.at(i).at(j) = x.at(i*(N+2)+j);
     }
   }
   return ans;
