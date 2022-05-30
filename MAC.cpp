@@ -26,8 +26,9 @@ dy=1/100
 
  */
 #include <bits/stdc++.h>
-#include "Eigen/Core"
+#include <Eigen/Core>
 #include "Eigen/Dense"
+#include "Eigen/Sparse"
 using namespace Eigen;
 using namespace std;
 #define N 10
@@ -157,44 +158,77 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  MatrixXd A = MatrixXd::Zero((N+2)*(N+2), (N+2)*(N+2));
-  VectorXd b((N+2)*(N+2));
-
+  vector<Triplet<double> > tripletVec;
+  vector<Triplet<double> > tripletVecb;
   // P_{0,0} = P_{N+1,0} = P_{0,N+1} = P_{N+1,N+1} = 0
-  A(0,0) = 1; b(0) = 0;
-  A(1,N+1) = 1; b(1) = 0;
-  A(2,(N+1)*(N+2)) = 1; b(2) = 0;
-  A(3,(N+1)*(N+2)+N+1) = 1; b(3) = 0;
-
+  tripletVec.push_back( Triplet<double>(0,0,1) );
+  tripletVec.push_back( Triplet<double>(1,N+1,1) );
+  tripletVec.push_back( Triplet<double>(2,(N+1)*(N+2),1) );
+  tripletVec.push_back( Triplet<double>(0,(N+1)*(N+3),1) );
+  tripletVecb.push_back( Triplet<double>(0,0,0) );
+  tripletVecb.push_back( Triplet<double>(1,0,0) );
+  tripletVecb.push_back( Triplet<double>(2,0,0) );
+  tripletVecb.push_back( Triplet<double>(3,0,0) );
+  
   for (int i = 1; i < N+1; i++) {
     // P_{0,i} = P_{1,i}
-    A(3+i, i) = 1; A(3+i, i+N+2) = -1; b(3+i) = 0;
-
+    tripletVec.push_back( Triplet<double>(3+i,i,1) );
+    tripletVec.push_back( Triplet<double>(3+i,i+N+2,-1) );
+    tripletVecb.push_back( Triplet<double>(3+i,0,0) );
+  }
+  for (int i = 1; i < N+1; i++) {
     // P_{i,0} = P_{i,1}
-    A(3+N+i, i*(N+2)) = 1; A(3+N+i, i*(N+2)+1) = -1; b(3+N+i) = 0;
-
+    tripletVec.push_back( Triplet<double>(3+N+i,i*(N+2),1) );
+    tripletVec.push_back( Triplet<double>(3+N+i,i*(N+2)+1,-1) );
+    tripletVecb.push_back( Triplet<double>(3+N+i,0,0) );
+  }
+  for (int i = 1; i < N+1; i++) {
     // P_{i,N} = P_{i,N+1}
-    A(3+2*N+i, i*(N+2)+N) = 1; A(3+2*N+i, i*(N+2)+N+1) = -1; b(3+2*N+i) = 0;
-
+    tripletVec.push_back( Triplet<double>(3+2*N+i,i*(N+2)+N,1) );
+    tripletVec.push_back( Triplet<double>(3+2*N+i,i*(N+2)+N+1,-1) );
+    tripletVecb.push_back( Triplet<double>(3+2*N+i,0,0) );
+  }
+  for (int i = 1; i < N+1; i++) {
     // P_{N,i} = P_{N+1,i}
-    A(3+3*N+i, N*(N+2)+i) = 1; A(3+3*N+i, (N+1)*(N+2)+i) = -1; b(3+3*N+i) = 0;
+    tripletVec.push_back( Triplet<double>(3+3*N+i,N*(N+2)+i,1) );
+    tripletVec.push_back( Triplet<double>(3+3*N+i,(N+1)*(N+2)+i,-1) );
+    tripletVecb.push_back( Triplet<double>(3+3*N+i,0,0) );
   }
 
   // P_{i-1,j} + P_{i,j-1} + P_{i+1,j} + P_{i,j+1} - 4 * P_{i,j} = ...
   for (int i=1; i<N+1; i++) {
     for (int j=1; j<N+1; j++) {
-      A(3+4*N+(i-1)*N+j, (i-1)*(N+2)+j) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j-1) = 1;
-      A(3+4*N+(i-1)*N+j, (i+1)*(N+2)+j) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j+1) = 1;
-      A(3+4*N+(i-1)*N+j, i*(N+2)+j) = -4;
-      b(3+4*N+(i-1)*N+j) =
-	(div.at(i).at(j) / dt +
-	 (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
-	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx);
+      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,(i-1)*(N+2)+j,1) );
+      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j-1,1) );
+      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,(i+1)*(N+2)+j,1) );
+      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j+1,1) );
+      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j,-4) );
+      tripletVecb.push_back( Triplet<double>(3+4*N+(i-1)*N+j,0,
+					     (div.at(i).at(j) / dt +
+					      (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
+					      (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx)));
+      
     }
   }
-  VectorXd x = A.colPivHouseholderQr().solve(b);
+  SparseMatrix<double> A((N+2)*(N+2),(N+2)*(N+2));
+  A.setFromTriplets(tripletVec.begin(), tripletVec.end());
+  SparseMatrix<double> b((N+2)*(N+2),1);
+  b.setFromTriplets(tripletVecb.begin(), tripletVecb.end());
+  
+  VectorXd x;
+  SparseQR< SparseMatrix<double>, COLAMDOrdering<int> > solver;
+  
+  solver.compute(A);
+  if (solver.info() != Success) {
+    cerr << "compute(A) failed!" << endl;
+    exit(1);
+  }
+  x = solver.solve(b);
+  if (solver.info() != Success) {
+    cerr << "solve(b) failed!" << endl;
+    exit(1);
+  }
+  
   vector<vector<double> > ans(N+2, vector<double>(N+2,0));
   for (int i=0; i<N+2; i++) {
     for (int j=0; j<N+2; j++) {
