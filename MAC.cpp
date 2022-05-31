@@ -1,32 +1,18 @@
 /*
+左の壁の温度が -0.5、右の壁の温度が 0.5 になるように
 
-(0,0) (1,0) (2,0) (3,0) (4,0)... (101,0)
-(0,1) (1,1) (2,1) (3,1) (4,1)
-(0,2) (1,2) (2,2) (3,2) (4,2)
-(0,3) (1,3) (2,3) (3,3) (4,3)
-(0,4) (1,4) (2,4) (3,4) (4,4)
-.                            
-.
-.
-(0,101)
+最初液体温度は一様に 0 とする。
+壁で流速は 0
 
-左の壁の温度が15度、右の壁の温度が0度になるように
-(0,i)と(4,i) (i=0,1,2,3,...,101) のマスの温度を定める。
-左右上下の壁に沿った速度が0になるように
-(0,i)と(4,i) (i=0,1,2,3,...,101) のマスの速度を定める。
-
-最初液体は一様に0度とする。
-
-圧力は (0,0) において常に 0 とする。
+圧力は (1,1) において常に 0 とする。
 レイノルズ数:0.71
 プラントル数:7100
 dt:1e-4
-dx=1/100
-dy=1/100
+dx=1/N
+dy=1/N
 
  */
 #include <bits/stdc++.h>
-#include "SOR.hpp"
 using namespace std;
 #define N 20
 // N に合わせる
@@ -35,8 +21,66 @@ using namespace std;
 #define Ra 7100
 #define Pr 0.71
 #define dt 1e-4
-// N に合わせる
 #define place(i,j) (i-1)*N+j-2
+#define CNT_MAX 200
+#define TOL 1e-6
+#define omega 1.9
+
+double conv(vector<double> a, vector<double> b) {
+  double up = 0, down = 0;
+  int M = a.size();
+  for (int i = 0; i < M; i++) {
+    up += (a.at(i) - b.at(i)) * (a.at(i) - b.at(i));
+    down += b.at(i) * b.at(i);
+  }
+  return up / down;
+}
+
+int abs(int x, int y) {
+  if (x > y) return x - y;
+  else return y - x;
+}
+
+double A2a(int i, int j) {
+  int x = (i+1) / N + 1, y = (i+1) % N + 1;
+  int a = (j+1) / N + 1, b = (j+1) % N + 1;
+  if (x == a && abs(y,b) == 1) return 1;
+  else if (abs(x,a) == 1 && y == b) return 1;
+  else if (x == a && y == b) {
+    double check = -4;
+    if (x-1 <= 0 || (x==2 && y==1)) check += 1;
+  
+    if (y-1 <= 0 || (x==1 && y==2)) check += 1;
+  
+    if (x+1 >= N+1) check += 1;
+
+    if (y+1 >= N+1) check += 1;
+
+    if (x * y == 2) check -= 1;
+    return check;
+  } else return 0;
+}
+
+vector<double> SOR(vector<double> b) {
+  int M = b.size();
+  vector<double> x(M, nan("")), x_past(M,0);
+  for (int k = 0; k < CNT_MAX; k++) {
+    for (int i = 0; i < M; i++) {
+      double sigma = 0;
+      for(int j = 0; j < i; j++) {
+	sigma += A2a(i,j) * x.at(j);
+      }
+      for(int j = i+1; j < M; j++) {
+	sigma += A2a(i,j) * x_past.at(j);
+      }
+      sigma = (b.at(i) - sigma) / A2a(i,i);
+      x.at(i) = x_past.at(i) + omega * (sigma - x_past.at(i));
+    }
+    swap(x, x_past);
+    if (conv(x, x_past) < TOL) break;
+  }
+  return x_past;
+}
 
 vector<vector<double> > DIV(vector<vector<double> > &u, vector<vector<double> > &v) {
   vector<vector<double> > ans(N+2, vector<double>(N+2, 0));
@@ -188,7 +232,6 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  vector<vector<double> > A((N-1)*(N+1), vector<double>((N-1)*(N+1),0));
   vector<double> b((N-1)*(N+1));
 
   // P_{1,1} = 0
@@ -202,12 +245,11 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
   for (int i = 1; i <= N; i++) {
     for (int j = 1; j <= N; j++) {
       if (i == 1 && j == 1) continue;
-      make_A(A, i, j, cnt);
       b.at(cnt) = make_b(i, j, div, cnvu, difu, cnvv, difv, buov);
       cnt++;
     }
   }
-  vector<double> x = SOR(A, b);
+  vector<double> x = SOR(b);
   
   vector<vector<double> > ans(N+2, vector<double>(N+2,0));
   // P_{0,2} ... P_{0,N} = P_{1,2} ... P_{1,N}
