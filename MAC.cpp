@@ -26,10 +26,7 @@ dy=1/100
 
  */
 #include <bits/stdc++.h>
-#include <Eigen/Core>
-#include "Eigen/Dense"
-#include "Eigen/Sparse"
-using namespace Eigen;
+#include "SOR.hpp"
 using namespace std;
 #define N 10
 // N に合わせる
@@ -164,22 +161,22 @@ double make_b(int i, int j,
 	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx);
 }
 
-void make_A(MatrixXd &A, int i, int j, int cnt) {
+void make_A(vector<vector<double> > &A, int i, int j, int cnt) {
   int check = -4;
-  if (i-1 > 0 && !(i==2 && j==1)) A(cnt, place(i-1,j)) = 1;
+  if (i-1 > 0 && !(i==2 && j==1)) A.at(cnt).at(place(i-1,j)) = 1;
   else check++;
   
-  if (j-1 > 0 && !(i==1 && j==2)) A(cnt, place(i,j-1)) = 1;
+  if (j-1 > 0 && !(i==1 && j==2)) A.at(cnt).at(place(i,j-1)) = 1;
   else check++;
   
-  if (i+1 < N+1) A(cnt, place(i+1,j)) = 1;
+  if (i+1 < N+1) A.at(cnt).at(place(i+1,j)) = 1;
   else check++;
 
-  if (j+1 < N+1) A(cnt, place(i,j+1)) = 1;
+  if (j+1 < N+1) A.at(cnt).at(place(i,j+1)) = 1;
   else check++;
 
   if (i * j == 2) check--;
-  A(cnt, place(i,j)) = check;
+  A.at(cnt).at(place(i,j)) = check;
   return;
 }
 
@@ -191,8 +188,8 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  MatrixXd A = MatrixXd::Zero((N-1)*(N+1), (N-1)*(N+1));
-  VectorXd b((N-1)*(N+1));
+  vector<vector<double> > A((N-1)*(N+1), vector<double>((N-1)*(N+1),0));
+  vector<double> b((N-1)*(N+1));
 
   // P_{1,1} = 0
   // P_{0,i} = P_{1,i}
@@ -206,28 +203,28 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
     for (int j = 1; j <= N; j++) {
       if (i == 1 && j == 1) continue;
       make_A(A, i, j, cnt);
-      b(cnt) = make_b(i, j, div, cnvu, difu, cnvv, difv, buov);
+      b.at(cnt) = make_b(i, j, div, cnvu, difu, cnvv, difv, buov);
       cnt++;
     }
   }
-  VectorXd x = A.partialPivLu().solve(b);
+  vector<double> x = SOR(A, b);
   
   vector<vector<double> > ans(N+2, vector<double>(N+2,0));
   // P_{0,2} ... P_{0,N} = P_{1,2} ... P_{1,N}
   for (int i = 2; i <= N; i++) {
-    ans.at(0).at(i) = x(place(1,i));
+    ans.at(0).at(i) = x.at(place(1,i));
   }
   
   for (int i = 1; i <= N; i++) {
-    if (i > 1) ans.at(i).at(0) = x(place(i,1));
+    if (i > 1) ans.at(i).at(0) = x.at(place(i,1));
     for (int j = 1; j <= N; j++) {
-      if (i * j != 1) ans.at(i).at(j) = x(place(i,j));
+      if (i * j != 1) ans.at(i).at(j) = x.at(place(i,j));
     }
-    ans.at(i).at(N+1) = x(place(i,N));
+    ans.at(i).at(N+1) = x.at(place(i,N));
   }
 
   for (int i = 1; i <= N; i++) {
-    ans.at(N+1).at(i) = x(place(N,i));
+    ans.at(N+1).at(i) = x.at(place(N,i));
   }
   // 
   return ans;
@@ -345,6 +342,7 @@ int main(int argc, char *argv[]) {
   }
 
   for (int i = 0; i < iter; i++) {
+    cerr << i << endl;
     cout << "--------------------------------------- NUM :" << i << "-----------------------" << endl;
     show_param(uvtemp);
     cout << endl;
