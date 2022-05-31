@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 #define CNT_MAX 200
 #define TOL 1e-6
-#define omega 1
+#define omega 1.9
 using namespace std;
 
 double conv(vector<double> a, vector<double> b) {

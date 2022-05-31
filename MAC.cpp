@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
   }
 
   for (int i = 0; i < iter; i++) {
-    cerr << i << endl;
+    // cerr << i << endl;
     cout << "--------------------------------------- NUM :" << i << "-----------------------" << endl;
     show_param(uvtemp);
     cout << endl;
