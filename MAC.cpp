@@ -38,6 +38,8 @@ using namespace std;
 #define Ra 7100
 #define Pr 0.71
 #define dt 1e-4
+// N に合わせる
+#define place(i,j) (i-1)*N+j-2
 
 vector<vector<double> > DIV(vector<vector<double> > &u, vector<vector<double> > &v) {
   vector<vector<double> > ans(N+2, vector<double>(N+2, 0));
@@ -150,6 +152,37 @@ vector<vector<double> > DIFT(vector<vector<double> > &temp) {
   return ans;
 }
 
+double make_b(int i, int j,
+	    vector<vector<double> > &div,
+	    vector<vector<double> > &cnvu,
+	    vector<vector<double> > &difu,
+	    vector<vector<double> > &cnvv,
+	    vector<vector<double> > &difv,
+	    vector<vector<double> > &buov) {
+  return (div.at(i).at(j) / dt +
+	 (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
+	 (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx);
+}
+
+void make_A(MatrixXd &A, int i, int j, int cnt) {
+  int check = -4;
+  if (i-1 > 0 && !(i==2 && j==1)) A(cnt, place(i-1,j)) = 1;
+  else check++;
+  
+  if (j-1 > 0 && !(i==1 && j==2)) A(cnt, place(i,j-1)) = 1;
+  else check++;
+  
+  if (i+1 < N+1) A(cnt, place(i+1,j)) = 1;
+  else check++;
+
+  if (j+1 < N+1) A(cnt, place(i,j+1)) = 1;
+  else check++;
+
+  if (i * j == 2) check--;
+  A(cnt, place(i,j)) = check;
+  return;
+}
+
 // P_{0,0}, P_{0,1},...
 //P_{i,j}は上からP.at((i*(N+2))+j)
 vector<vector<double> > nextP(vector<vector<double> > &div,
@@ -158,83 +191,45 @@ vector<vector<double> > nextP(vector<vector<double> > &div,
 			      vector<vector<double> > &cnvv,
 			      vector<vector<double> > &difv,
 			      vector<vector<double> > &buov) {
-  vector<Triplet<double> > tripletVec;
-  vector<Triplet<double> > tripletVecb;
-  // P_{0,0} = P_{N+1,0} = P_{0,N+1} = P_{N+1,N+1} = 0
-  tripletVec.push_back( Triplet<double>(0,0,1) );
-  tripletVec.push_back( Triplet<double>(1,N+1,1) );
-  tripletVec.push_back( Triplet<double>(2,(N+1)*(N+2),1) );
-  tripletVec.push_back( Triplet<double>(0,(N+1)*(N+3),1) );
-  tripletVecb.push_back( Triplet<double>(0,0,0) );
-  tripletVecb.push_back( Triplet<double>(1,0,0) );
-  tripletVecb.push_back( Triplet<double>(2,0,0) );
-  tripletVecb.push_back( Triplet<double>(3,0,0) );
-  
-  for (int i = 1; i < N+1; i++) {
-    // P_{0,i} = P_{1,i}
-    tripletVec.push_back( Triplet<double>(3+i,i,1) );
-    tripletVec.push_back( Triplet<double>(3+i,i+N+2,-1) );
-    tripletVecb.push_back( Triplet<double>(3+i,0,0) );
-  }
-  for (int i = 1; i < N+1; i++) {
-    // P_{i,0} = P_{i,1}
-    tripletVec.push_back( Triplet<double>(3+N+i,i*(N+2),1) );
-    tripletVec.push_back( Triplet<double>(3+N+i,i*(N+2)+1,-1) );
-    tripletVecb.push_back( Triplet<double>(3+N+i,0,0) );
-  }
-  for (int i = 1; i < N+1; i++) {
-    // P_{i,N} = P_{i,N+1}
-    tripletVec.push_back( Triplet<double>(3+2*N+i,i*(N+2)+N,1) );
-    tripletVec.push_back( Triplet<double>(3+2*N+i,i*(N+2)+N+1,-1) );
-    tripletVecb.push_back( Triplet<double>(3+2*N+i,0,0) );
-  }
-  for (int i = 1; i < N+1; i++) {
-    // P_{N,i} = P_{N+1,i}
-    tripletVec.push_back( Triplet<double>(3+3*N+i,N*(N+2)+i,1) );
-    tripletVec.push_back( Triplet<double>(3+3*N+i,(N+1)*(N+2)+i,-1) );
-    tripletVecb.push_back( Triplet<double>(3+3*N+i,0,0) );
-  }
+  MatrixXd A = MatrixXd::Zero((N-1)*(N+1), (N-1)*(N+1));
+  VectorXd b((N-1)*(N+1));
 
+  // P_{1,1} = 0
+  // P_{0,i} = P_{1,i}
+  // P_{i,0} = P_{i,1}
+  // P_{i,N} = P_{i,N+1}
+  // P_{N,i} = P_{N+1,i}
   // P_{i-1,j} + P_{i,j-1} + P_{i+1,j} + P_{i,j+1} - 4 * P_{i,j} = ...
-  for (int i=1; i<N+1; i++) {
-    for (int j=1; j<N+1; j++) {
-      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,(i-1)*(N+2)+j,1) );
-      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j-1,1) );
-      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,(i+1)*(N+2)+j,1) );
-      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j+1,1) );
-      tripletVec.push_back( Triplet<double>(3+4*N+(i-1)*N+j,i*(N+2)+j,-4) );
-      tripletVecb.push_back( Triplet<double>(3+4*N+(i-1)*N+j,0,
-					     (div.at(i).at(j) / dt +
-					      (cnvu.at(i-1).at(j) - cnvu.at(i).at(j) + difu.at(i).at(j) - difu.at(i-1).at(j)) / dx +
-					      (cnvv.at(i).at(j-1) - cnvv.at(i).at(j) + difv.at(i).at(j) - difv.at(i).at(j-1) + buov.at(i).at(j) - buov.at(i).at(j-1)) / dy) * (dx * dx)));
-      
+  // P_{1,2} ... P_{N,N} についての方程式
+  int cnt = 0;
+  for (int i = 1; i <= N; i++) {
+    for (int j = 1; j <= N; j++) {
+      if (i == 1 && j == 1) continue;
+      make_A(A, i, j, cnt);
+      b(cnt) = make_b(i, j, div, cnvu, difu, cnvv, difv, buov);
+      cnt++;
     }
   }
-  SparseMatrix<double> A((N+2)*(N+2),(N+2)*(N+2));
-  A.setFromTriplets(tripletVec.begin(), tripletVec.end());
-  SparseMatrix<double> b((N+2)*(N+2),1);
-  b.setFromTriplets(tripletVecb.begin(), tripletVecb.end());
-  
-  VectorXd x;
-  SparseQR< SparseMatrix<double>, COLAMDOrdering<int> > solver;
-  
-  solver.compute(A);
-  if (solver.info() != Success) {
-    cerr << "compute(A) failed!" << endl;
-    exit(1);
-  }
-  x = solver.solve(b);
-  if (solver.info() != Success) {
-    cerr << "solve(b) failed!" << endl;
-    exit(1);
-  }
+  VectorXd x = A.partialPivLu().solve(b);
   
   vector<vector<double> > ans(N+2, vector<double>(N+2,0));
-  for (int i=0; i<N+2; i++) {
-    for (int j=0; j<N+2; j++) {
-      ans.at(i).at(j) = x(i*(N+2)+j);
-    }
+  // P_{0,2} ... P_{0,N} = P_{1,2} ... P_{1,N}
+  for (int i = 2; i <= N; i++) {
+    ans.at(0).at(i) = x(place(1,i));
   }
+  
+  for (int i = 1; i <= N; i++) {
+    if (i > 1) ans.at(i).at(0) = x(place(i,1));
+    for (int j = 1; j <= N; j++) {
+      if (i * j != 1) ans.at(i).at(j) = x(place(i,j));
+    }
+    ans.at(i).at(N+1) = x(place(i,N));
+  }
+
+  for (int i = 1; i <= N; i++) {
+    ans.at(N+1).at(i) = x(place(N,i));
+  }
+  // 
   return ans;
 }
 
