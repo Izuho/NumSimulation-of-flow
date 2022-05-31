@@ -28,10 +28,10 @@ dy=1/100
 #include <bits/stdc++.h>
 #include "SOR.hpp"
 using namespace std;
-#define N 10
+#define N 20
 // N に合わせる
-#define dx 0.1
-#define dy 0.1
+#define dx 0.05
+#define dy 0.05
 #define Ra 7100
 #define Pr 0.71
 #define dt 1e-4
